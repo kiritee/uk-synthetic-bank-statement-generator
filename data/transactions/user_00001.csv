@@ -1,19 +1,29 @@
 timestamp,amount,transaction_type,currency,description_raw,description_cleaned,merchant,is_income,risk_flag,source_type,user_id
-2023-07-05T09:15:23Z,450.0,CREDIT,GBP,UBER BV *TRIP PAYOUT 1234567890,Uber Trip Payout,Uber,True,,platform,user_00001
-2023-07-07T14:35:12Z,-23.99,DEBIT,GBP,PAYPAL *Klarna AB,Klarna Purchase,Klarna,False,,refund,user_00001
-2023-07-10T18:47:51Z,200.0,CREDIT,GBP,FREELANCE PAY PAL *DESIGNWORK,Freelance Design Payment,PayPal,True,,platform,user_00001
-2023-07-12T11:20:34Z,-15.0,DEBIT,GBP,MCDONALD'S MANCHESTER,McDonald's Manchester,McDonald's,False,,food,user_00001
-2023-07-22T09:05:45Z,150.0,CREDIT,GBP,CASH DEPOSIT ATM 12345,Cash Deposit,ATM Deposit,True,unexplained inflow,cash,user_00001
-2023-07-25T08:15:12Z,-60.0,DEBIT,GBP,TESCO STORES 1234,Tesco Stores,Tesco,False,,groceries,user_00001
-2023-08-02T13:00:00Z,300.0,CREDIT,GBP,BACS NHS SHIFT PAYMENT,NHS Shift Payment,NHS,True,,agency,user_00001
-2023-08-05T16:45:23Z,-30.0,DEBIT,GBP,BET365 *ONLINE SPORTS,Bet365 Online Sports,Bet365,False,gambling,leisure,user_00001
-2023-08-10T10:30:55Z,475.0,CREDIT,GBP,UBER BV *TRIP PAYOUT 0987654321,Uber Trip Payout,Uber,True,,platform,user_00001
-2023-08-15T12:22:10Z,-40.0,DEBIT,GBP,AMAZON UK RETAIL,Amazon UK Retail,Amazon,False,,shopping,user_00001
-2023-08-20T14:00:31Z,250.0,CREDIT,GBP,FREELANCE PAY PAL *GRAPHICDESIGN,Freelance Graphic Design Payment,PayPal,True,,platform,user_00001
-2023-08-25T08:45:22Z,-50.0,DEBIT,GBP,JD SPORTS MANCHESTER,JD Sports Manchester,JD Sports,False,,shopping,user_00001
-2023-09-01T11:15:03Z,500.0,CREDIT,GBP,BACS NHS SHIFT PAYMENT,NHS Shift Payment,NHS,True,,agency,user_00001
-2023-09-05T15:30:12Z,-25.0,DEBIT,GBP,STARBUCKS MANCHESTER,Starbucks Manchester,Starbucks,False,,food,user_00001
-2023-09-10T09:55:37Z,400.0,CREDIT,GBP,UBER BV *TRIP PAYOUT 1122334455,Uber Trip Payout,Uber,True,,platform,user_00001
-2023-09-15T13:22:43Z,-45.0,DEBIT,GBP,PAYPAL *Klarna AB,Klarna Purchase,Klarna,False,,refund,user_00001
-2023-09-20T17:05:22Z,150.0,CREDIT,GBP,CASH DEPOSIT ATM 67890,Cash Deposit,ATM Deposit,True,unexplained inflow,cash,user_00001
-2023-09-25T08:40:10Z,-35.0,DEBIT,GBP,ASDA STORES 5678,Asda Stores,Asda,False,,groceries,user_00001
+2023-04-05T10:15:30Z,1250.0,CREDIT,GBP,BACS CREDIT FROM WRITING AGCY,BACS Credit from Writing Agency,Creative Ink,True,,agency,user_00001
+2023-04-07T18:45:12Z,-45.99,DEBIT,GBP,PAYPAL *NL BOOKS,PayPal Purchase from NL Books,NL Books,False,,platform,user_00001
+2023-04-15T08:23:45Z,600.0,CREDIT,GBP,BACS CREDIT TUITION SERVICE,BACS Credit from Tuition Service,TutorMatch,True,,tuition,user_00001
+2023-04-20T12:54:32Z,-120.0,DEBIT,GBP,KLARNA PAYMENT *#123456,Klarna Payment,Klarna,False,,platform,user_00001
+2023-05-03T09:12:10Z,1250.0,CREDIT,GBP,FREELANCE INCOME BACS,Freelance Income BACS,WriteStart Agency,True,,agency,user_00001
+2023-05-08T14:35:00Z,-59.99,DEBIT,GBP,AMAZON PRIME *MKTPLACE,Amazon Prime Marketplace Purchase,Amazon,False,,platform,user_00001
+2023-05-15T11:06:22Z,750.0,CREDIT,GBP,ONLINE TUTORING PAYPAL,Online Tutoring PayPal,EduConnect,True,,tuition,user_00001
+2023-05-22T16:47:59Z,-200.0,DEBIT,GBP,SAVINGS TRANSFER,Savings Transfer,Savings Account,False,,personal,user_00001
+2023-06-05T09:45:30Z,1250.0,CREDIT,GBP,BACS INCOME FROM AGENCY,BACS Income from Agency,Novelty Writers,True,,agency,user_00001
+2023-06-10T17:25:14Z,-150.0,DEBIT,GBP,GROCERY SUPERMARKET,Grocery Supermarket,Tesco,False,,retail,user_00001
+2023-06-15T08:30:00Z,600.0,CREDIT,GBP,TUITION FEE PAYPAL,Tuition Fee PayPal,LearnOnline,True,,tuition,user_00001
+2023-06-18T19:13:47Z,-75.0,DEBIT,GBP,DINNER RESTAURANT,Dinner at Restaurant,Pizza Express,False,,retail,user_00001
+2023-07-01T10:15:30Z,1250.0,CREDIT,GBP,BACS CREDIT WRITING JOB,BACS Credit from Writing Job,WordCraft,True,,agency,user_00001
+2023-07-05T14:55:30Z,-95.99,DEBIT,GBP,PAYPAL *ELECTRONICS,PayPal Purchase from Electronics,Currys PC World,False,,platform,user_00001
+2023-07-15T11:30:30Z,750.0,CREDIT,GBP,EDUCATION SERVICE PAYPAL,Education Service PayPal,TutorPro,True,,tuition,user_00001
+2023-07-20T20:10:15Z,-300.0,DEBIT,GBP,UTILITIES PAYMENT,Utilities Payment,British Gas,False,,bills,user_00001
+2023-08-03T10:12:15Z,1250.0,CREDIT,GBP,BACS PAYMENT WRITING,BACS Payment for Writing,PenPals Agency,True,,agency,user_00001
+2023-08-09T12:05:00Z,-20.99,DEBIT,GBP,SPOTIFY UK,Spotify Subscription,Spotify,False,,subscription,user_00001
+2023-08-15T08:45:30Z,600.0,CREDIT,GBP,FEE TUITION ONLINE,Fee from Tuition Online,StudyPortal,True,,tuition,user_00001
+2023-08-21T16:40:00Z,-50.0,DEBIT,GBP,CAFÉ LUNCH,Cafe Lunch,Pret A Manger,False,,retail,user_00001
+2023-09-02T09:00:30Z,1250.0,CREDIT,GBP,BACS CREDIT WORK,BACS Credit for Work,InkScribe Collective,True,,agency,user_00001
+2023-09-06T13:55:45Z,-89.99,DEBIT,GBP,ONLINE SHOPPING ASOS,Online Shopping at ASOS,ASOS,False,,retail,user_00001
+2023-09-15T10:12:30Z,750.0,CREDIT,GBP,PAYPAL TUITION FEE,PayPal Tuition Fee,LearnHub,True,,tuition,user_00001
+2023-09-18T18:30:00Z,-22.5,DEBIT,GBP,NETFLIX.COM,Netflix Subscription,Netflix,False,,subscription,user_00001
+2023-10-01T09:30:30Z,1250.0,CREDIT,GBP,BACS WRITING JOB,BACS Writing Job,Prose & Co,True,,agency,user_00001
+2023-10-05T17:00:00Z,-49.99,DEBIT,GBP,ARGOS PURCHASE,Argos Purchase,Argos,False,,retail,user_00001
+2023-10-10T08:15:00Z,600.0,CREDIT,GBP,PAYPAL TUTORING FEE,PayPal Tutoring Fee,TeachWise,True,,tuition,user_00001
+2023-10-15T12:00:00Z,-33.0,DEBIT,GBP,UBER TRIP,Uber Trip,Uber,False,,transport,user_00001

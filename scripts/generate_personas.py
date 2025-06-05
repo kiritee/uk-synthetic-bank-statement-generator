@@ -3,11 +3,13 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import pandas as pd
-from scripts.helpers import call_gpt, generate_uuid, extract_json_block
-from tqdm import tqdm
-from scripts.config import load_config
+import asyncio
 import json
+import pandas as pd
+from tqdm import tqdm
+from scripts.helpers import call_gpt, call_gpt_async, generate_uuid, extract_json_block
+from scripts.config import load_config
+
 
 def create_prompt(n=5):
     return [{
@@ -33,7 +35,7 @@ Return as a JSON list of objects.
 """
     }]
 
-def main():
+def generate_personas():
     all_rows = []
     cfg= load_config()
     if cfg["batch_size"] > cfg["num_users"]:
@@ -58,6 +60,45 @@ def main():
     os.makedirs(output_path, exist_ok=True)
     df.to_csv(os.path.join(output_path, "personas.csv"), index=False)
     print(f"✅ Personas saved to {os.path.join(output_path, 'personas.csv')}")
+
+
+async def generate_personas_async():
+    cfg= load_config()
+    if cfg["batch_size"] > cfg["num_users"]:
+        print(f"⚠️ Reducing batch_size ({cfg['batch_size']}) to num_users ({cfg['num_users']})")
+        cfg["batch_size"] = cfg["num_users"]
+    BATCH_SIZE = cfg["batch_size"]
+    OUTPUT_DIR = os.path.abspath(cfg["output_dir"])
+    NUM_USERS = cfg["num_users"]
+    num_batches = (NUM_USERS + BATCH_SIZE - 1) // BATCH_SIZE
+    prompts = [create_prompt(cfg["batch_size"]) for _ in range(num_batches)]
+    results = await asyncio.gather(*[call_gpt_async(p) for p in prompts])
+
+    all_rows = []
+    for i, result in enumerate(results):
+        if result.startswith("❌ Error"):
+            print(result)
+            continue
+        try:
+            parsed = json.loads(extract_json_block(result))
+            for idx, persona in enumerate(parsed):
+                persona["user_id"] = generate_uuid("user", i * BATCH_SIZE + idx)
+                all_rows.append(persona)
+        except Exception as e:
+            print(f"❌ JSON Parse Error: {e}")
+            continue
+
+    df = pd.DataFrame(all_rows)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    df.to_csv(os.path.join(OUTPUT_DIR, "personas.csv"), index=False)
+    print(f"✅ Personas saved to {os.path.join(OUTPUT_DIR, 'personas.csv')}")
+
+
+def main():
+    print("🔍 Generating personas...")
+    # generate_personas()
+    asyncio.run(generate_personas_async())
+    print("✅ Persona generation complete.")
 
 if __name__ == "__main__":
     main()

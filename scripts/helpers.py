@@ -127,12 +127,12 @@ async def call_gpt_async(messages, model=None, temperature=None, max_tokens=None
     openai.api_key = api_key
 
     try:
-        client = OpenAI()
+        client = AsyncOpenAI()
         response = await client.chat.completions.create(
             model=model or cfg["gpt_model"],
             messages=messages,
             temperature=temperature if temperature is not None else cfg["temperature"],
-            max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
+            # max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
         )
 
         return response.choices[0].message.content.strip()
