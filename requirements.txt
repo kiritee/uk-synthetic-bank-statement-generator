@@ -1,0 +1,6 @@
+openai
+pandas
+tqdm
+pyyaml
+tenacity
+python-dotenv
