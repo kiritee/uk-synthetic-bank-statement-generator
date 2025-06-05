@@ -4,18 +4,14 @@ import subprocess
 import os
 import sys
 import datetime
-from scripts.config import load_config, save_config
+from scripts.config import load_config, save_config, LOG_DIR
 from scripts.helpers import load_config, estimate_cost_tokens
+from scripts import generate_personas, generate_transactions
 
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scripts')))
-
-
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
 
 def log(msg, level="INFO"):
     timestamp = datetime.datetime.now().isoformat(timespec='seconds')
+    os.makedirs(LOG_DIR, exist_ok=True)
     with open(f"{LOG_DIR}/bankgen.log", "a") as f:
         f.write(f"{timestamp} [{level}] {msg}\n")
     print(f"[{level}] {msg}")
@@ -33,12 +29,14 @@ def confirm_cost(stage):
 
 def run_personas():
     log("Running persona generation...")
-    subprocess.run(["python", "scripts/generate_personas.py"], check=True)
+    # subprocess.run(["python", "scripts/generate_personas.py"], check=True)
+    generate_personas.main()
     log("Persona generation complete.")
 
 def run_transactions():
     log("Running transaction generation...")
-    subprocess.run(["python", "scripts/generate_transactions.py"], check=True)
+    # subprocess.run(["python", "scripts/generate_transactions.py"], check=True)
+    generate_transactions.main()
     log("Transaction generation complete.")
 
 def update_config(key, value):
@@ -54,6 +52,25 @@ def update_config(key, value):
         log(f"✅ Updated config: {key} = {cast_value}")
     except Exception as e:
         log(f"❌ Failed to update config: {e}", level="ERROR")
+
+
+def handle_generation(args):
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'scripts')))
+    os.makedirs("logs", exist_ok=True)
+    cfg = load_config()
+
+    if args.run == "personas":
+        confirm_cost("personas")
+        run_personas()
+    elif args.run == "transactions":
+        confirm_cost("transactions")
+        run_transactions()
+    else:
+        confirm_cost("personas")
+        run_personas()
+        confirm_cost("transactions")
+        run_transactions()
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Synthetic Bank Generator CLI")
@@ -71,7 +88,7 @@ def get_parser():
         help="Simulate what would be executed"
     )
     parser.add_argument(
-        "set_config", nargs='*',
+        "--set-config", nargs='*',
         help="Set config key and value (e.g., num_users 500)"
     )
     return parser
@@ -80,7 +97,6 @@ def get_parser():
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    cfg = load_config()
 
     if args.validate_config:
         log("🔍 Validating config...")
@@ -96,6 +112,8 @@ def main():
         }
 
         errors = []
+
+        cfg = load_config()
         for k, expected_type in default.items():
             if k not in cfg:
                 errors.append(f"Missing key: {k}")
@@ -122,20 +140,13 @@ def main():
             log("❌ Usage: bankgen set-config <key> <value>", level="ERROR")
         else:
             update_config(*args.set_config)
-    elif args.run == "personas":
-        confirm_cost("personas")
-        run_personas()
-    elif args.run == "transactions":
-        confirm_cost("transactions")
-        run_transactions()
-    else:
-        confirm_cost("personas")
-        run_personas()
-        confirm_cost("transactions")
-        run_transactions()
+        return
+    
+    handle_generation(args)
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         print("🔧 Use --help to see available commands.")
     main()
+    sys.exit(0)
 

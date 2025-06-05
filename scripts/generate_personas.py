@@ -1,6 +1,13 @@
+# Ensure root directory is in sys.path
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import pandas as pd
-from scripts.helpers import call_gpt, cfg, generate_uuid
+from scripts.helpers import call_gpt, generate_uuid, extract_json_block
 from tqdm import tqdm
+from scripts.config import load_config
+import json
 
 def create_prompt(n=5):
     return [{
@@ -28,19 +35,29 @@ Return as a JSON list of objects.
 
 def main():
     all_rows = []
+    cfg= load_config()
+    if cfg["batch_size"] > cfg["num_users"]:
+        print(f"⚠️ Reducing batch_size ({cfg['batch_size']}) to num_users ({cfg['num_users']})")
+        cfg["batch_size"] = cfg["num_users"]
     for i in tqdm(range(0, cfg["num_users"], cfg["batch_size"])):
         prompt = create_prompt(cfg["batch_size"])
-        result = call_gpt(prompt)
+        raw_result = call_gpt(prompt)
+        clean_result = extract_json_block(raw_result)
         try:
-            data = eval(result.strip())
-        except Exception:
-            print("Parse error:", result)
+            data = json.loads(clean_result)
+        except Exception as e:
+            print(f"❌ JSON Parse error:\n{clean_result}\nException: {e}")
             continue
+
         for idx, persona in enumerate(data):
             persona["user_id"] = generate_uuid("user", i + idx)
             all_rows.append(persona)
+
     df = pd.DataFrame(all_rows)
-    df.to_csv(f'{cfg["output_dir"]}/personas.csv', index=False)
+    output_path = os.path.abspath(cfg["output_dir"])
+    os.makedirs(output_path, exist_ok=True)
+    df.to_csv(os.path.join(output_path, "personas.csv"), index=False)
+    print(f"✅ Personas saved to {os.path.join(output_path, 'personas.csv')}")
 
 if __name__ == "__main__":
     main()
