@@ -52,31 +52,33 @@ Output ONLY a valid JSON array.
 
 
 def simulate_transactions(user, months=6):
-    raw_response = call_gpt(create_prompt(user, months))
-    cleaned_response = extract_json_block(raw_response)
+    """Simulate transactions for a user over a specified number of months."""
+
+    response = call_gpt(create_prompt(user, months))
 
     try:
-        txns = json.loads(cleaned_response)
+        txns = json.loads(response)
         for txn in txns:
             txn["user_id"] = user["user_id"]
         return txns
     except Exception as e:
         print("❌ JSON Parse Error:", e)
-        print(cleaned_response)
+        print(response)
         return []
 
 async def simulate_transactions_async(user, months=6):
-    raw_response = await call_gpt_async(create_prompt(user, months))
-    cleaned_response = extract_json_block(raw_response)
+    """Asynchronously simulate transactions for a user over a specified number of months."""
+    
+    response = await call_gpt_async(create_prompt(user, months))
 
     try:
-        txns = json.loads(cleaned_response)
+        txns = json.loads(response)
         for txn in txns:
             txn["user_id"] = user["user_id"]
         return txns
     except Exception as e:
         print("❌ JSON Parse Error:", e)
-        print(cleaned_response)
+        print(response)
         return []
 
 

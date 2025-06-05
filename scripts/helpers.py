@@ -1,73 +1,56 @@
 # helpers.py
 from openai import OpenAI, AsyncOpenAI
 import openai
-import yaml
 import os
-import random
-import time
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 from scripts.model_pricing import price_per_1k
-from scripts.config import load_config
+from scripts.config import load_config, save_config
 import asyncio
 
+# _api_key_loaded is used to ensure the API key is loaded only once across multiple calls to call_gpt or call_gpt_async
 _api_key_loaded = False
+openai.api_key = None  # Initialize the OpenAI API key to None
 
-# Load YAML config
-def load_config():
-    with open("scripts/config.yaml", "r") as f:
-        return yaml.safe_load(f)
-
-def save_config(cfg_obj):
-    with open("scripts/config.yaml", "w") as f:
-        yaml.dump(cfg_obj, f)
-
+# Mask the OpenAI API key for logging purposes e.g. "sk-1234...5678" -> "sk-****5678"
 def mask_key(key):
     if not key or len(key) < 10:
         return "[MASKED]"
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=20))
-def call_gpt(messages, model=None, temperature=None, max_tokens=None):
+# function to set the OpenAI API key from environment variables or config file ensuring it is loaded only once
+def set_openai_api_key():
+    """Set the OpenAI API key from environment variables or config file."""
 
-    if not _api_key_loaded:
-        api_key = os.getenv("OPENAI_API_KEY") or cfg.get("openai_api_key")
-        if api_key:
-            _api_key_loaded = True
-        else:
-            raise RuntimeError("❌ OpenAI API key not found in .env or config.yaml")
-
-    # Set key for OpenAI SDK
-    openai.api_key = api_key
-
-    # Log masked key origin
-    if os.getenv("OPENAI_API_KEY"):
-        print("🔐 Using API key from .env")
-    else:
-        print("⚠️ Using API key from config.yaml (not recommended)")
-    print(f"🔐 OpenAI API key loaded: {mask_key(api_key)}")
+    # Track if the API key has already been loaded
+    global _api_key_loaded 
 
 
-    try:
-        client = OpenAI()
-
-
-        response = client.chat.completions.create(
-            model=model or cfg["gpt_model"],
-            messages=messages,
-            temperature=temperature if temperature is not None else cfg["temperature"],
-            max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
-        )
+    # Only load the API key if it hasn't been loaded yet
+    if not _api_key_loaded: 
+        # Load environment variables from .env file and configuration from config.yaml
+        load_dotenv() 
+        cfg = load_config() 
         
-        result = response.choices[0].message.content
+        global openai
+        # Get the API key from environment variables or config file 
+        # If the API key is not found, raise an error
+        # If the API key is found, set it in the OpenAI client
+        # and mark it as loaded to avoid reloading in future calls
+        api_key = os.getenv("OPENAI_API_KEY") or cfg.get("openai_api_key") 
+        if not api_key:
+            raise RuntimeError("❌ OpenAI API key not found in .env or config.yaml")
+        openai.api_key = api_key
+        _api_key_loaded = True
+        print("🔐 OpenAI API key loaded successfully."
+              f" Key: {mask_key(api_key)}")
+    else:
+        print("🔐 OpenAI API key already loaded, skipping reloading.")
+    return openai.api_key
 
 
-        return result.strip()
-    except Exception as e:
-        print(f"❌ GPT call failed: {e}")
-        raise
-
+# clean up the JSON block by removing triple backticks and any leading/trailing whitespace
 def extract_json_block(text):
     """Strip triple backticks and return a clean JSON string."""
     text = text.strip()
@@ -78,23 +61,12 @@ def extract_json_block(text):
     return text.rstrip("```").strip()
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=20))
+# function to call GPT synchronously with retry logic
+@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=20)) # retry up to 5 times with exponential backoff
 def call_gpt(messages, model=None, temperature=None, max_tokens=None):
-    global _api_key_loaded
-    load_dotenv()
+    """Call the GPT model with retry logic."""
     cfg = load_config()
-
-    api_key = os.getenv("OPENAI_API_KEY") or cfg.get("openai_api_key")
-    if not api_key:
-        raise RuntimeError("❌ OpenAI API key not found in .env or config.yaml")
-
-    if not _api_key_loaded:
-        print("🔐 Using API key from .env" if os.getenv("OPENAI_API_KEY") else "⚠️ Using API key from config.yaml (not recommended)")
-        print(f"🔐 OpenAI API key loaded: {mask_key(api_key)}")
-        _api_key_loaded = True
-
-    openai.api_key = api_key
-
+    set_openai_api_key()  # Ensure API key is set before making the call
     try:
         client = OpenAI()
         response = client.chat.completions.create(
@@ -103,29 +75,19 @@ def call_gpt(messages, model=None, temperature=None, max_tokens=None):
             temperature=temperature if temperature is not None else cfg["temperature"],
             # max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
         )
-
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+        return extract_json_block(result)  # Clean up the JSON block before returning
     except Exception as e:
         print(f"❌ GPT call failed: {e}")
-        raise 
+        raise
 
 
-# async version of call_gpt
+# function to call GPT asynchronously with retry logic
+@retry(stop=stop_after_attempt(5), wait=wait_random_exponential(min=1, max=20))  # retry up to 5 times with exponential backoff
 async def call_gpt_async(messages, model=None, temperature=None, max_tokens=None):
-    global _api_key_loaded
-    load_dotenv()
+    """Asynchronously call the GPT model with retry logic."""
     cfg = load_config()
-
-    api_key = os.getenv("OPENAI_API_KEY") or cfg.get("openai_api_key")
-    if not api_key:
-        raise RuntimeError("❌ OpenAI API key not found in .env or config.yaml")
-    if not _api_key_loaded:
-        print("🔐 Using API key from .env" if os.getenv("OPENAI_API_KEY") else "⚠️ Using API key from config.yaml (not recommended)")
-        print(f"🔐 OpenAI API key loaded: {mask_key(api_key)}")
-        _api_key_loaded = True
-
-    openai.api_key = api_key
-
+    set_openai_api_key()  # Ensure API key is set before making the call
     try:
         client = AsyncOpenAI()
         response = await client.chat.completions.create(
@@ -135,13 +97,16 @@ async def call_gpt_async(messages, model=None, temperature=None, max_tokens=None
             # max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
         )
 
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+        return extract_json_block(result)  # Clean up the JSON block before returning
     except Exception as e:
         print(f"❌ GPT call failed: {e}")
         raise
 
 
+# function to create unique UUIDs for users or transactions
 def generate_uuid(prefix, i):
+    """Generate a unique UUID with a specified prefix and index."""
     return f"{prefix}_{str(i).zfill(5)}"
 
 
