@@ -10,6 +10,7 @@ tqdm = "*"
 pyyaml = "*"
 tenacity = "*"
 python-dotenv = "*"
+tiktoken = "*"
 
 [dev-packages]
 

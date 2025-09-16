@@ -10,45 +10,25 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 import random
 from datetime import datetime, timedelta
-from scripts.helpers import call_gpt, call_gpt_async, extract_json_block
+from scripts.helpers import call_gpt, call_gpt_async, count_tokens, extract_json_block
 from scripts.config import load_config
-
+from promptlib.transactions import full_transaction_1_shot
 
 def random_date(start, end):
     return start + timedelta(seconds=random.randint(0, int((end - start).total_seconds())))
 
 def create_prompt(user, months=6):
-    return [{
-        "role": "system",
-        "content": "You are a bank statement transactions generator for synthetic bank data modeling."
-    }, {
+    prompt = [
+    #     {
+    #     "role": "system",
+    #     "content": "You are a bank statement transactions generator for synthetic bank data modeling."
+    # }, 
+    {
         "role": "user",
-        "content": f"""
-You are simulating a full {months}-month UK bank statement for a gig worker with the following profile:
-{json.dumps(user, indent=2)}
-
-Generate a JSON array of messy Open Banking-style transaction entries covering the last {months} months. Ensure:
-- Realistic frequency
-- Mix of CREDIT and DEBIT
-- Messy, real-looking raw descriptions
-- Diverse merchant names and source types
-- Clear income vs non-income behavior
-
-Each transaction must include:
-- timestamp (ISO 8601)
-- amount (positive or negative, GBP)
-- transaction_type ("CREDIT" or "DEBIT")
-- currency ("GBP")
-- description_raw
-- description_cleaned
-- merchant
-- is_income (True/False)
-- risk_flag (e.g. "gambling", "unexplained inflow", "synthetic_loop", or null)
-- source_type (e.g. "platform", "agency", "tuition", "govt", "refund", etc.)
-
-Output ONLY a valid JSON array.
-"""
+        "content": full_transaction_1_shot.format(months=months, persona=json.dumps(user, indent=2))
     }]
+    # print("No of tokens in prompt:", count_tokens(prompt))
+    return prompt
 
 
 def simulate_transactions(user, months=6):

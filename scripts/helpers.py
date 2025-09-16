@@ -1,4 +1,5 @@
 # helpers.py
+from urllib import response
 from openai import OpenAI, AsyncOpenAI
 import openai
 import os
@@ -7,6 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 from scripts.model_pricing import price_per_1k
 from scripts.config import load_config, save_config
 import asyncio
+import tiktoken
 
 # _api_key_loaded is used to ensure the API key is loaded only once across multiple calls to call_gpt or call_gpt_async
 _api_key_loaded = False
@@ -76,6 +78,13 @@ def call_gpt(messages, model=None, temperature=None, max_tokens=None):
             # max_tokens=max_tokens if max_tokens is not None else cfg["max_tokens"],
         )
         result = response.choices[0].message.content.strip()
+        prompt_tokens = response.usage.prompt_tokens
+        completion_tokens = response.usage.completion_tokens
+        total_tokens = response.usage.total_tokens
+
+        print(f"Prompt Tokens: {prompt_tokens}")
+        print(f"Completion Tokens: {completion_tokens}")
+        print(f"Total Tokens: {total_tokens}")
         return extract_json_block(result)  # Clean up the JSON block before returning
     except Exception as e:
         print(f"❌ GPT call failed: {e}")
@@ -98,6 +107,13 @@ async def call_gpt_async(messages, model=None, temperature=None, max_tokens=None
         )
 
         result = response.choices[0].message.content.strip()
+        prompt_tokens = response.usage.prompt_tokens
+        completion_tokens = response.usage.completion_tokens
+        total_tokens = response.usage.total_tokens
+
+        print(f"Prompt Tokens: {prompt_tokens}")
+        print(f"Completion Tokens: {completion_tokens}")
+        print(f"Total Tokens: {total_tokens}")
         return extract_json_block(result)  # Clean up the JSON block before returning
     except Exception as e:
         print(f"❌ GPT call failed: {e}")
@@ -133,3 +149,14 @@ def estimate_cost_tokens(stage: str, cfg) -> tuple:
     return int(tokens), round(cost_usd, 2)
 
 
+# count number of tokens in given text using the specified model using tiktoken library
+def count_tokens(text, model="gpt-4"):
+    """Returns the number of tokens used by a given text."""
+    cfg = load_config()
+    model = cfg.get("gpt_model", model)
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    
+    return len(encoding.encode(text))   

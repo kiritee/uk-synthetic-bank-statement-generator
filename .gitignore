@@ -1,6 +1,7 @@
 # Project specific
 data/
 test.py
+validator.py
 tests/
 logs/
 

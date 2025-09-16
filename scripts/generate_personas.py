@@ -8,34 +8,25 @@ import json
 import pandas as pd
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
-from scripts.helpers import call_gpt, call_gpt_async, generate_uuid
+from scripts.helpers import call_gpt, call_gpt_async, generate_uuid, count_tokens
 from scripts.config import load_config
+from promptlib.personas import full_persona_1_shot
+
 
 
 def create_prompt(n=5):
     """Create a prompt for generating financial personas."""
-    return [{
-        "role": "system",
-        "content": "You are a financial persona generator for synthetic bank data modeling."
-    }, {
+    prompt = [
+    #     {
+    #     "role": "system",
+    #     "content": "You are a financial persona generator for synthetic bank data modeling."
+    # },
+        {
         "role": "user",
-        "content": f"""
-Generate {n} ultra-realistic UK gig/temp economy personas with traits:
-- name, location, age
-- gig_types (e.g., Uber, Tuition, NHS shifts)
-- income_style (structured, irregular, hidden)
-- payment_channels (BACS, FPS, PayPal, cash)
-- behaviors (e.g., overdraft, Klarna, gambling, informal income)
-- complexity_level (basic, noisy_legit, ambiguous, high_risk, synthetic_fraud)
-- income_regular (yes/no), income_stability (high/medium/low)
-- income_true_last_3mo, income_lender_assess_6mo
-- risk_level
-- persona_description
-- income_interpretation
-
-Return as a JSON list of objects.
-"""
+        "content": full_persona_1_shot.format(n=n)
     }]
+    # print("No of tokens in prompt:", count_tokens(prompt))
+    return prompt
 
 
 

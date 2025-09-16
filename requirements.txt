@@ -4,3 +4,4 @@ tqdm
 pyyaml
 tenacity
 python-dotenv
+tiktoken
