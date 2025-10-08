@@ -4,6 +4,8 @@ test.py
 validator.py
 tests/
 logs/
+old_codes/
+.vscode/
 
 
 # Byte-compiled / optimized / DLL files

@@ -1,114 +1,155 @@
-# Ensure root directory is in sys.path
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# generate_transactions.py (refactored to kirkomi-utils: log + llm)
 
-import asyncio
+import os
 import json
+import asyncio
+from pathlib import Path
+from typing import Dict, Any, List
+
 import pandas as pd
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
-import random
-from datetime import datetime, timedelta
-from scripts.helpers import call_gpt, call_gpt_async, count_tokens, extract_json_block
-from scripts.config import load_config
+from .config import load_config
+from .helpers import log, get_llm, extract_json_block
+# from kirkomi_utils.logging.logger import log
+from kirkomi_utils.llm import LLMClient
 from promptlib.transactions import full_transaction_1_shot
 
-def random_date(start, end):
-    return start + timedelta(seconds=random.randint(0, int((end - start).total_seconds())))
 
-def create_prompt(user, months=6):
-    prompt = [
-    #     {
-    #     "role": "system",
-    #     "content": "You are a bank statement transactions generator for synthetic bank data modeling."
-    # }, 
-    {
-        "role": "user",
-        "content": full_transaction_1_shot.format(months=months, persona=json.dumps(user, indent=2))
-    }]
-    # print("No of tokens in prompt:", count_tokens(prompt))
-    return prompt
+def create_prompt(user: Dict[str, Any], months: int = 6) -> List[Dict[str, str]]:
+    """
+    Build an OpenAI-style messages array to generate transactions for a user.
+    """
+    return [
+        {
+            "role": "user",
+            "content": full_transaction_1_shot.format(
+                months=months,
+                persona=json.dumps(user, indent=2)
+            ),
+        }
+    ]
 
 
-def simulate_transactions(user, months=6):
-    """Simulate transactions for a user over a specified number of months."""
+def simulate_transactions(llm: LLMClient, user: Dict[str, Any], months: int = 6) -> List[Dict[str, Any]]:
+    """
+    Synchronous: generate transactions for a single user.
+    """
+    messages = create_prompt(user, months)
+    with log.tag_timer("LLM", f"simulate txns for {user.get('user_id','<unknown>')}"):
+        try:
+            res = llm.chat(messages, cache=True)
+            text = res.content or ""
+            txns = json.loads(extract_json_block(text))
+        except Exception as e:
+            log.exception(f"JSON parse error while generating txns for {user.get('user_id')}: {e}", tag="TXN")
+            return []
 
-    response = call_gpt(create_prompt(user, months))
+    # Ensure user_id is attached (if not already in template response)
+    for txn in txns:
+        txn["user_id"] = user["user_id"]
+    return txns
 
-    try:
-        txns = json.loads(response)
-        for txn in txns:
-            txn["user_id"] = user["user_id"]
-        return txns
-    except Exception as e:
-        print("❌ JSON Parse Error:", e)
-        print(response)
-        return []
 
-async def simulate_transactions_async(user, months=6):
-    """Asynchronously simulate transactions for a user over a specified number of months."""
-    
-    response = await call_gpt_async(create_prompt(user, months))
+async def simulate_transactions_async(llm: LLMClient, user: Dict[str, Any], months: int = 6) -> List[Dict[str, Any]]:
+    """
+    Asynchronous: generate transactions for a single user.
+    """
+    messages = create_prompt(user, months)
+    with log.tag("LLM"):
+        try:
+            res = await llm.chat_async(messages, cache=True)
+            text = res.content or ""
+            txns = json.loads(extract_json_block(text))
+        except Exception as e:
+            log.exception(f"[async] JSON parse error for {user.get('user_id')}: {e}", tag="TXN")
+            return []
 
-    try:
-        txns = json.loads(response)
-        for txn in txns:
-            txn["user_id"] = user["user_id"]
-        return txns
-    except Exception as e:
-        print("❌ JSON Parse Error:", e)
-        print(response)
-        return []
+    for txn in txns:
+        txn["user_id"] = user["user_id"]
+    return txns
 
 
 def generate_transactions():
+    """
+    Synchronous batch: read personas.csv, generate per-user CSVs under output_dir/transactions/.
+    """
     cfg = load_config()
-    personas_path = os.path.join(cfg["output_dir"], "personas.csv")
-    if not os.path.exists(personas_path):
-        raise FileNotFoundError(f"❌ personas.csv not found at {personas_path}")
+    llm = get_llm()
+
+    personas_path = Path(cfg["output_dir"]) / "personas.csv"
+    if not personas_path.exists():
+        log.error(f"personas.csv not found at {personas_path}", tag="TXN")
+        return
 
     personas = pd.read_csv(personas_path)
-
     if personas.empty:
-        raise ValueError("❌ personas.csv is empty. Nothing to process.")
+        log.error("❌ personas.csv is empty. Nothing to process.", tag="TXN")
+        return
 
+    tx_dir = Path(cfg["output_dir"]) / "transactions"
+    tx_dir.mkdir(parents=True, exist_ok=True)
 
-    os.makedirs(f'{cfg["output_dir"]}/transactions', exist_ok=True)
+    log.info(f"Generating transactions (sync) for {len(personas)} users...", tag="TXN")
+    with log.tag("TXN_GEN_SYNC"):
+        for _, user_row in tqdm(personas.iterrows(), total=personas.shape[0]):
+            user = user_row.to_dict()
+            txns = simulate_transactions(llm, user, months=cfg["months"])
+            df = pd.DataFrame(txns)
+            out_path = tx_dir / f"{user['user_id']}.csv"
+            df.to_csv(out_path, index=False)
 
-    for _, user in tqdm(personas.iterrows(), total=personas.shape[0]):
-        txns = simulate_transactions(user.to_dict(), months=cfg["months"])
-        df = pd.DataFrame(txns)
-        df.to_csv(f'{cfg["output_dir"]}/transactions/{user["user_id"]}.csv', index=False)
+    log.info(f"✅ Transactions written to {tx_dir}", tag="TXN")
 
 
 async def generate_transactions_async():
+    """
+    Asynchronous batch: read personas.csv, generate per-user CSVs concurrently.
+    """
     cfg = load_config()
-    personas_path = os.path.join(cfg["output_dir"], "personas.csv")
-    if not os.path.exists(personas_path):
-        raise FileNotFoundError(f"❌ personas.csv not found at {personas_path}")
+    llm = get_llm()
+
+    personas_path = Path(cfg["output_dir"]) / "personas.csv"
+    if not personas_path.exists():
+        log.error(f"❌ personas.csv not found at {personas_path}", tag="TXN")
+        return
 
     personas = pd.read_csv(personas_path)
-
     if personas.empty:
-        raise ValueError("❌ personas.csv is empty. Nothing to process.")
+        log.error("❌ personas.csv is empty. Nothing to process.", tag="TXN")
+        return
 
-    os.makedirs(f'{cfg["output_dir"]}/transactions', exist_ok=True)
+    tx_dir = Path(cfg["output_dir"]) / "transactions"
+    tx_dir.mkdir(parents=True, exist_ok=True)
+
+    log.info(f"Generating transactions (async) for {len(personas)} users...", tag="TXN")
+
+    # Build all tasks
     tasks = []
-    for _, user in tqdm(personas.iterrows(), total=personas.shape[0]):
-        tasks.append(simulate_transactions_async(user.to_dict(), months=cfg["months"]))
-    
-    txns_list = await asyncio.gather(*tasks)
-    
-    for txns, user in zip(txns_list, personas.iterrows()):
+    users: List[Dict[str, Any]] = []
+    for _, user_row in personas.iterrows():
+        user = user_row.to_dict()
+        users.append(user)
+        tasks.append(simulate_transactions_async(llm, user, months=cfg["months"]))
+
+    # Dispatch and show progress
+    with log.tag("TXN_GEN_ASYNC"):
+        results = await tqdm_asyncio.gather(*tasks, desc="Generating Tx Batches", total=len(tasks))
+
+    # Write each user's CSV
+    for user, txns in zip(users, results):
         df = pd.DataFrame(txns)
-        df.to_csv(f'{cfg["output_dir"]}/transactions/{user[1]["user_id"]}.csv', index=False)
+        out_path = tx_dir / f"{user['user_id']}.csv"
+        df.to_csv(out_path, index=False)
+
+    log.info(f"✅ Transactions written to {tx_dir}", tag="TXN")
+
 
 def main():
-    print("🔍 Generating transactions...")
-    # generate_transactions()
-    asyncio.run(generate_transactions_async())
-    print("✅ Transactions generation complete.")
+    log.info("🔍 Generating transactions...", tag="APP")
+    # generate_transactions()  # sync path if preferred
+    asyncio.run(generate_transactions_async())  # async path
+    log.info("✅ Transactions generation complete.", tag="APP")
 
 
 if __name__ == "__main__":

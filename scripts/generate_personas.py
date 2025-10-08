@@ -1,177 +1,158 @@
-# Ensure root directory is in sys.path
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) # Ensure root directory is in sys.path
+# generate_personas.py
 
-import asyncio
+import os
 import json
+import asyncio
+from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
-from scripts.helpers import call_gpt, call_gpt_async, generate_uuid, count_tokens
-from scripts.config import load_config
+# from kirkomi_utils.logging.logger import log
+from .config import load_config
+from .helpers import log, get_llm, generate_uuid, extract_json_block
 from promptlib.personas import full_persona_1_shot
 
 
-
-def create_prompt(n=5):
-    """Create a prompt for generating financial personas."""
-    prompt = [
-    #     {
-    #     "role": "system",
-    #     "content": "You are a financial persona generator for synthetic bank data modeling."
-    # },
+def create_prompt(n: int = 5):
+    """
+    Build an OpenAI-style messages array for generating `n` personas.
+    """
+    return [
         {
-        "role": "user",
-        "content": full_persona_1_shot.format(n=n)
-    }]
-    # print("No of tokens in prompt:", count_tokens(prompt))
-    return prompt
+            "role": "user",
+            "content": full_persona_1_shot.format(n=n),
+        }
+    ]
 
+
+def _validate_positive_int(name: str, value):
+    if not isinstance(value, int) or value <= 0:
+        log.error(f"{name} must be a positive integer. Got: {value!r}")
+        return False
+    return True
 
 
 def generate_personas():
-    """Generate financial personas and save to CSV."""
+    """
+    Synchronous persona generation.
+    Uses LLMClient.chat for each batch, writes a single personas.csv at the end.
+    """
+    cfg = load_config()
+    llm = get_llm()
 
-    # Load configuration
+    num_users = cfg["num_users"]
+    batch_size = cfg["batch_size"]
+
+    if not (_validate_positive_int("num_users", num_users) and _validate_positive_int("batch_size", batch_size)):
+        return
+
+    if batch_size > num_users:
+        log.warning(f"Reducing batch_size ({batch_size}) to num_users ({num_users}).")
+        batch_size = num_users
+
+    log.info(f"Generating {num_users} personas in batches of {batch_size}...", tag="PERSONA")
     all_rows = []
-    cfg= load_config()
 
-    NUM_USERS = cfg["num_users"]
-    if not isinstance(NUM_USERS, int) or NUM_USERS <= 0:
-        print("❌ num_users must be a positive integer. Please check your config.")
-        return
+    with log.tag("PERSONA_GEN"):
+        for i in tqdm(range(0, num_users, batch_size)):
+            n = min(batch_size, num_users - i)
+            messages = create_prompt(n)
 
-    BATCH_SIZE = cfg["batch_size"]
-    if not isinstance(BATCH_SIZE, int) or BATCH_SIZE <= 0:
-        print("❌ batch_size must be a positive integer. Please check your config.")
-        return
+            with log.tag_timer("LLM", f"batch {i // batch_size + 1}"):
+                try:
+                    res = llm.chat(messages, cache=True)
+                    text = res.content or ""
+                    # Be tolerant of fenced JSON:
+                    data = json.loads(extract_json_block(text))
+                except Exception as e:
+                    log.exception(f"JSON parse error for batch starting at index {i}: {e}", tag="PERSONA")
+                    continue
 
-    # Check and adjust batch size if necessary
-    if BATCH_SIZE > NUM_USERS:
-        print(f"⚠️ Reducing batch_size ({BATCH_SIZE}) to num_users ({NUM_USERS})")
-        BATCH_SIZE = NUM_USERS
+            for idx, persona in enumerate(data):
+                persona["user_id"] = generate_uuid("user", i + idx)
+                all_rows.append(persona)
 
-    # Generate personas in batches
-    print(f"Generating {NUM_USERS} personas in batches of {BATCH_SIZE}...")
-
-    for i in tqdm(range(0, NUM_USERS, BATCH_SIZE)): # tqdm for progress bar
-        prompt = create_prompt(BATCH_SIZE)
-        result = call_gpt(prompt)
-        try:
-            # Extract JSON block from the response
-            data = json.loads(result) 
-        except Exception as e:
-            print(f"❌ JSON Parse error:\n{result}\nException: {e}")
-            continue
-
-        # Generate user IDs for each personaand append to all_rows
-        for idx, persona in enumerate(data):
-            persona["user_id"] = generate_uuid("user", i + idx)
-            all_rows.append(persona)
-
-    # Create DataFrame for all rowas and save to CSV
     if not all_rows:
-        print("❌ No personas generated. Please check your configuration and try again.")
+        log.error("No personas generated. Check your configuration and try again.", tag="PERSONA")
         return
-    print(f"✅ Generated {len(all_rows)} personas.")
-    print("Saving personas to CSV...")
-    df = pd.DataFrame(all_rows)
-    output_path = os.path.abspath(cfg["output_dir"])
-    os.makedirs(output_path, exist_ok=True)
-    df.to_csv(os.path.join(output_path, "personas.csv"), index=False)
-    print(f"✅ Personas saved to {os.path.join(output_path, 'personas.csv')}")
 
+    df = pd.DataFrame(all_rows)
+    output_dir = Path(cfg.get("output_dir", "data")).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / "personas.csv"
+
+    df.to_csv(out_path, index=False)
+    log.info(f"✅ Generated {len(all_rows)} personas. Saved to {out_path}", tag="PERSONA")
 
 
 async def generate_personas_async():
-    """Asynchronously generate financial personas and save to CSV."""
+    """
+    Asynchronous persona generation.
+    Batches prompts + fires them concurrently with llm.chat_async,
+    then writes personas.csv.
+    """
+    cfg = load_config()
+    llm = get_llm()
 
-    print("🔍 Generating personas asynchronously...")
+    num_users = cfg["num_users"]
+    batch_size = cfg["batch_size"]
 
-    # Load configuration and prepare for async generation
-
-    # Load configuration
-    all_rows = []
-    cfg= load_config()
-
-    NUM_USERS = cfg["num_users"]
-    if not isinstance(NUM_USERS, int) or NUM_USERS <= 0:
-        print("❌ num_users must be a positive integer. Please check your config.")
+    if not (_validate_positive_int("num_users", num_users) and _validate_positive_int("batch_size", batch_size)):
         return
 
-    BATCH_SIZE = cfg["batch_size"]
-    if not isinstance(BATCH_SIZE, int) or BATCH_SIZE <= 0:
-        print("❌ batch_size must be a positive integer. Please check your config.")
-        return
+    if batch_size > num_users:
+        log.warning(f"Reducing batch_size ({batch_size}) to num_users ({num_users}).")
+        batch_size = num_users
 
-    # Check and adjust batch size if necessary
-    if BATCH_SIZE > NUM_USERS:
-        print(f"⚠️ Reducing batch_size ({BATCH_SIZE}) to num_users ({NUM_USERS})")
-        BATCH_SIZE = NUM_USERS
+    num_batches = (num_users + batch_size - 1) // batch_size
+    log.info(f"Generating {num_users} personas asynchronously in {num_batches} batches of {batch_size}...", tag="PERSONA")
 
-    # Generate personas in batches
-    print(f"Generating {NUM_USERS} personas in batches of {BATCH_SIZE}...")
+    prompts = []
+    batch_sizes = []
+    for start in range(0, num_users, batch_size):
+        n = min(batch_size, num_users - start)
+        prompts.append(create_prompt(n))
+        batch_sizes.append((start, n))
 
-    num_batches = (NUM_USERS + BATCH_SIZE - 1) // BATCH_SIZE
-    print(f"Total batches to process: {num_batches}")
+    with log.tag("PERSONA_GEN"):
+        # Launch async calls
+        log.info("Dispatching async LLM calls...", tag="LLM")
+        tasks = [llm.chat_async(p, cache=True) for p in prompts]
+        results = await tqdm_asyncio.gather(*tasks, desc="Generating Persona Batches", total=num_batches)
 
-    # Create prompts for each batch
-    prompts = [create_prompt(BATCH_SIZE) for _ in range(num_batches)]
+        # Process results
+        all_rows = []
+        for (start, n), res in zip(batch_sizes, results):
+            try:
+                text = res.content or ""
+                parsed = json.loads(extract_json_block(text))
+            except Exception as e:
+                log.exception(f"JSON parse error for batch starting at {start}: {e}", tag="PERSONA")
+                continue
 
-    # Generate personas asynchronously
-    print("Calling GPT asynchronously...")
-
-    # Use tqdm_asyncio for progress bar with async calls
-    results = await tqdm_asyncio.gather(*[call_gpt_async(p) for p in prompts], desc="Generating Persona Batch", total=num_batches)
-
-    print("Processing results...")
-    all_rows = []
-    for i, result in enumerate(results):
-        # Check for errors in the result
-        if result.startswith("❌ Error"):
-            print(result)
-            continue
-        try:
-            parsed = json.loads(result)
-            for idx, persona in enumerate(parsed):
-                # Generate user IDs for each persona
-                if "user_id" in persona:
-                    print(f"⚠️ Warning: 'user_id' already exists in persona {i * BATCH_SIZE + idx}. Overwriting.")
-                if "user_id" not in persona:
-                    print(f"🔍 Generating user_id for persona {i * BATCH_SIZE + idx}")
-                persona["user_id"] = generate_uuid("user", i * BATCH_SIZE + idx)
+            for j, persona in enumerate(parsed):
+                persona["user_id"] = generate_uuid("user", start + j)
                 all_rows.append(persona)
-        except json.JSONDecodeError as json_err:
-            print(f"❌ JSON Decode Error: {json_err}")
-            continue
-        except Exception as e:
-            print(f"❌ JSON Parse Error: {e}")
-            continue
 
     if not all_rows:
-        print("❌ No personas generated. Please check your configuration and try again.")
+        log.error("No personas generated. Check your configuration and try again.", tag="PERSONA")
         return
-    print(f"✅ Generated {len(all_rows)} personas.")
-    print("Saving personas to CSV...")
+
     df = pd.DataFrame(all_rows)
+    output_dir = Path(cfg.get("output_dir", "data")).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / "personas.csv"
 
-    OUTPUT_DIR = os.path.abspath(cfg["output_dir"])
-    if not os.path.exists(OUTPUT_DIR):
-        print(f"⚠️ Output directory {OUTPUT_DIR} does not exist. Creating it.")
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    df.to_csv(os.path.join(OUTPUT_DIR, "personas.csv"), index=False)
-    print(f"✅ Personas saved to {os.path.join(OUTPUT_DIR, 'personas.csv')}")
-
+    df.to_csv(out_path, index=False)
+    log.info(f"✅ Generated {len(all_rows)} personas. Saved to {out_path}", tag="PERSONA")
 
 
 def main():
-    print("🔍 Generating personas...")
+    log.info("Starting persona generation...", tag="APP")
+    # Choose sync or async path:
     # generate_personas()
     asyncio.run(generate_personas_async())
-    print("✅ Persona generation complete.")
-
+    log.info("Persona generation complete.", tag="APP")
 
 
 if __name__ == "__main__":
