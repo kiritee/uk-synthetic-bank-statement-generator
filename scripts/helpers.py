@@ -30,36 +30,22 @@ If you want direct access to the facade:
 """
 
 from __future__ import annotations
-
 from typing import Optional, Sequence, Dict, Any
-import json
-
-# --- kirkomi_utils (new) ---
 from kirkomi_utils.llm import LLMClient, estimate_prompt_cost_by_tokens
 from kirkomi_utils.logging.logger import log
+from .config import load_config
+from .model_pricing import price_per_1k
 
-# Keep your existing project config/pricing imports.
-# We try both locations for load_config for flexibility.
-try:
-    from scripts.config import load_config  # old path
-except Exception:  # pragma: no cover
-    from config import load_config          # new path at project root
 
-try:
-    from scripts.model_pricing import price_per_1k
-except Exception:  # pragma: no cover
-    price_per_1k = {
-        # sensible fallbacks if the pricing table is unavailable
-        "gpt-4": 0.03,         # example per 1K tokens (edit to match your model_pricing)
-        "gpt-4o": 0.005,
-        "gpt-4o-mini": 0.0015,
-    }
+    # price_per_1k = {
+    #     # sensible fallbacks if the pricing table is unavailable
+    #     "gpt-4": 0.03,         # example per 1K tokens (edit to match your model_pricing)
+    #     "gpt-4o": 0.005,
+    #     "gpt-4o-mini": 0.0015,
+    # }
+#from scripts.config import load_config
 
-# Optional dependency (token counting). Keep same semantics as before.
-try:  # pragma: no cover
-    import tiktoken
-except Exception:  # pragma: no cover
-    tiktoken = None
+
 
 
 # -----------------------------------------------------------------------------
@@ -81,9 +67,9 @@ def _build_llm_from_app_config() -> LLMClient:
     Returns:
         LLMClient: ready-to-use client with retries + optional in-memory caching.
     """
-    cfg = load_config()  # your app’s domain config (num_users, months, gpt_model, etc.)
+    cfg = load_config()  # your app’s domain config (num_users, months, model, etc.)
     overrides = {
-        "model": cfg.get("gpt_model"),
+        "model": cfg.get("model"),
         "temperature": cfg.get("temperature"),
         "max_tokens": cfg.get("max_tokens"),
         # You can add "provider" here if you want to select a non-default provider from app config:
@@ -200,7 +186,7 @@ def estimate_cost_tokens(stage: str, cfg: Dict[str, Any]) -> tuple[int, float]:
 
     Args:
         stage: one of {"personas", "transactions"}
-        cfg:   app config dict (expects: gpt_model, max_tokens, num_users, months, batch_size)
+        cfg:   app config dict (expects: model, max_tokens, num_users, months, batch_size)
 
     Returns:
         (tokens: int, cost_usd: float)
@@ -209,7 +195,7 @@ def estimate_cost_tokens(stage: str, cfg: Dict[str, Any]) -> tuple[int, float]:
         - Uses scripts.model_pricing.price_per_1k if available; otherwise a small fallback table.
         - This is a *rough* estimate using your max_tokens as the per-call token size.
     """
-    gpt_model = cfg.get("gpt_model", "gpt-4")
+    model = cfg.get("model", "gpt-4")
     max_tokens = int(cfg.get("max_tokens", 4096))
     num_users = int(cfg["num_users"])
     months = int(cfg["months"])
@@ -224,7 +210,7 @@ def estimate_cost_tokens(stage: str, cfg: Dict[str, Any]) -> tuple[int, float]:
         raise ValueError("Invalid stage for estimation")
 
     # Use your project’s pricing table:
-    cost = estimate_prompt_cost_by_tokens(tokens, gpt_model, price_per_1k)
+    cost = estimate_prompt_cost_by_tokens(tokens, model, price_per_1k)
     return tokens, cost
 
 

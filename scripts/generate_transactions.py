@@ -30,7 +30,7 @@ def create_prompt(user: Dict[str, Any], months: int = 6) -> List[Dict[str, str]]
         }
     ]
 
-
+@log.log_timed("SIMULATE_TXN")
 def simulate_transactions(llm: LLMClient, user: Dict[str, Any], months: int = 6) -> List[Dict[str, Any]]:
     """
     Synchronous: generate transactions for a single user.
@@ -38,7 +38,8 @@ def simulate_transactions(llm: LLMClient, user: Dict[str, Any], months: int = 6)
     messages = create_prompt(user, months)
     with log.tag_timer("LLM", f"simulate txns for {user.get('user_id','<unknown>')}"):
         try:
-            res = llm.chat(messages, cache=True)
+            with log.tag_timer("LLM_CALL"):
+                res = llm.chat(messages, cache=True)
             text = res.content or ""
             txns = json.loads(extract_json_block(text))
         except Exception as e:
@@ -101,13 +102,15 @@ def generate_transactions():
 
     log.info(f"✅ Transactions written to {tx_dir}", tag="TXN")
 
-
+@log.log_timed("TXN_GEN_ASYNC")
 async def generate_transactions_async():
     """
     Asynchronous batch: read personas.csv, generate per-user CSVs concurrently.
     """
     cfg = load_config()
     llm = get_llm()
+
+    log.debug("Config and LLM client loaded.", tag="TXN")
 
     personas_path = Path(cfg["output_dir"]) / "personas.csv"
     if not personas_path.exists():
@@ -118,6 +121,8 @@ async def generate_transactions_async():
     if personas.empty:
         log.error("❌ personas.csv is empty. Nothing to process.", tag="TXN")
         return
+
+    log.debug(f"Loaded {len(personas)} personas.", tag="TXN")
 
     tx_dir = Path(cfg["output_dir"]) / "transactions"
     tx_dir.mkdir(parents=True, exist_ok=True)
@@ -134,7 +139,12 @@ async def generate_transactions_async():
 
     # Dispatch and show progress
     with log.tag("TXN_GEN_ASYNC"):
+    
+        log.debug("Dispatching async LLM calls...", tag="TXN")
+    
         results = await tqdm_asyncio.gather(*tasks, desc="Generating Tx Batches", total=len(tasks))
+
+    log.debug("All async LLM calls complete.", tag="TXN")
 
     # Write each user's CSV
     for user, txns in zip(users, results):
@@ -147,8 +157,8 @@ async def generate_transactions_async():
 
 def main():
     log.info("🔍 Generating transactions...", tag="APP")
-    # generate_transactions()  # sync path if preferred
-    asyncio.run(generate_transactions_async())  # async path
+    generate_transactions()  # sync path if preferred
+    # asyncio.run(generate_transactions_async())  # async path
     log.info("✅ Transactions generation complete.", tag="APP")
 
 

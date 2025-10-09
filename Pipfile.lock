@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d7cee5ea1dca44f58ef160d979740b073bb49666d10128c4fdc366c3c10b90d3"
+            "sha256": "124af3e1997dd29b4b0506443d7258d39cbdb728f1cab3a07fef9eb421e04806"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -260,8 +260,8 @@
             "version": "==0.11.0"
         },
         "kirkomi-utils": {
-            "git": "https://github.com/kiritee/kirkomi-utils.git",
-            "ref": "d8c16649499f013a023246d5230c8aff8816cda6"
+            "editable": true,
+            "file": "../kirkomi-utils"
         },
         "numpy": {
             "hashes": [
@@ -859,7 +859,6 @@
                 "sha256:fc530a28591a2d74bce821d10b418b26a094bf33839e69042a6e86ddb7a7fb27",
                 "sha256:ffc5288f34a8bc02e1ea7047b8d041104791d2ddbf42d1e5fa07822cbffe16bd"
             ],
-            "index": "pypi",
             "markers": "python_version >= '3.9'",
             "version": "==0.12.0"
         },

@@ -9,6 +9,7 @@ from typing import Dict, Any
 from scripts.config import load_config, save_config
 from scripts.helpers import estimate_cost_tokens
 from scripts import generate_personas, generate_transactions
+import logging
 
 # Shared logger from kirkomi_utils
 from kirkomi_utils.logging.logger import log
@@ -22,7 +23,7 @@ def confirm_cost(stage: str) -> None:
     tokens, cost = estimate_cost_tokens(stage, cfg)
 
     log.info(f"Estimated token usage for {stage}: {tokens:,} tokens", tag="COST")
-    log.info(f"Approximate cost: ${cost:.2f} USD using model={cfg.get('gpt_model')}", tag="COST")
+    log.info(f"Approximate cost: ${cost:.2f} USD using model={cfg.get('model')}", tag="COST")
 
     proceed = input("⚠️  Proceed with generation? (y/yes to continue): ").strip().lower()
     if proceed not in {"y", "yes"}:
@@ -81,7 +82,9 @@ def handle_generation(args) -> None:
     """
     Orchestrate which generation stages to run based on CLI args.
     """
+    log.debug("Starting generation pipeline")
     cfg = load_config()  # noqa: F841 (kept to ensure config load errors surface early)
+    log.debug(f"Loaded config")
 
     if args.run == "personas":
         confirm_cost("personas")
@@ -126,11 +129,9 @@ def _validate_config() -> None:
     required_schema = {
         "num_users": int,
         "months": int,
-        "gpt_model": str,
         "batch_size": int,
+        "tx_batch_size": int,
         "output_dir": str,
-        "max_tokens": int,
-        "temperature": float,
     }
 
     errors = []
@@ -151,7 +152,10 @@ def _validate_config() -> None:
 
 def main() -> None:
     parser = get_parser()
+    log.debug("Parsing CLI args")
+
     args = parser.parse_args()
+    log.debug(f"Parsed args: {args}", tag="CLI")
 
     if args.validate_config:
         log.info("🔍 Validating config...", tag="CFG")
@@ -175,7 +179,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    log.set_levels(console_level=logging.DEBUG)
+    log.info("🔧 BankGen CLI starting...", tag="APP")
     if len(sys.argv) == 1:
         print("🔧 Use --help to see available commands.")
+    log.debug("Starting main")
     main()
     sys.exit(0)

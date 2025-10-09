@@ -7,7 +7,6 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
-# from kirkomi_utils.logging.logger import log
 from .config import load_config
 from .helpers import log, get_llm, generate_uuid, extract_json_block
 from promptlib.personas import full_persona_1_shot
@@ -31,7 +30,7 @@ def _validate_positive_int(name: str, value):
         return False
     return True
 
-
+@log.log_timed("PERSONA_GEN")
 def generate_personas():
     """
     Synchronous persona generation.
@@ -84,7 +83,7 @@ def generate_personas():
     df.to_csv(out_path, index=False)
     log.info(f"✅ Generated {len(all_rows)} personas. Saved to {out_path}", tag="PERSONA")
 
-
+@log.log_timed("PERSONA_GEN_ASYNC")
 async def generate_personas_async():
     """
     Asynchronous persona generation.
@@ -114,11 +113,12 @@ async def generate_personas_async():
         prompts.append(create_prompt(n))
         batch_sizes.append((start, n))
 
-    with log.tag("PERSONA_GEN"):
+    with log.tag_timer("PERSONA_GEN"):
         # Launch async calls
-        log.info("Dispatching async LLM calls...", tag="LLM")
+        log.debug("Dispatching async LLM calls...", tag="LLM")
         tasks = [llm.chat_async(p, cache=True) for p in prompts]
         results = await tqdm_asyncio.gather(*tasks, desc="Generating Persona Batches", total=num_batches)
+        log.debug("All LLM calls complete.", tag="LLM")
 
         # Process results
         all_rows = []
@@ -150,8 +150,8 @@ async def generate_personas_async():
 def main():
     log.info("Starting persona generation...", tag="APP")
     # Choose sync or async path:
-    # generate_personas()
-    asyncio.run(generate_personas_async())
+    generate_personas()
+    # asyncio.run(generate_personas_async())
     log.info("Persona generation complete.", tag="APP")
 
 

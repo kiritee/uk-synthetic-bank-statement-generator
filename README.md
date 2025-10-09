@@ -52,13 +52,22 @@ synthetic_bank_data/
 Project-level controls (types shown):
 
 ```yaml
-num_users: 100
+num_users: 1
 months: 6
-gpt_model: gpt-4o
 batch_size: 10
+tx_batch_size: 5
 output_dir: data
-max_tokens: 4096
+
+# LLM configuration (optional)
+provider: openai
+model: gpt-4o-mini
 temperature: 0.2
+# max_tokens: 15000
+provider_options:
+  openai:
+    request_timeout_s: 45
+    max_retries: 0
+    watchdog_timeout_s: 70
 ```
 
 > Do **not** put your API key here — it lives in `.env`.
@@ -68,12 +77,16 @@ temperature: 0.2
 ### 2. `.env`
 LLM provider and credentials (used by `kirkomi_utils.llm`):
 
-```
+```bash
+# .env
 OPENAI_API_KEY=sk-...
+
 LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o
+LLM_MODEL=gpt-5
 LLM_TEMPERATURE=0.2
 LLM_MAX_TOKENS=4096
+OPENAI_REQUEST_TIMEOUT_S=60
+OPENAI_ENABLE_FALLBACK=false
 ```
 
 - `.env` values = defaults  
@@ -91,7 +104,7 @@ LLM_MAX_TOKENS=4096
 | **scripts/helpers.py** | Bridges config + LLM + project logic (`get_llm()`, `estimate_cost_tokens`) |
 | **scripts/generate_personas.py** | Generates gig-worker personas |
 | **scripts/generate_transactions.py** | Generates Open Banking–style transactions |
-| **scripts/bankgen.py** | CLI orchestrator with config validation, cost preview, and stage control |
+| **bankgen.py** | CLI orchestrator with config validation, cost preview, and stage control |
 
 ---
 

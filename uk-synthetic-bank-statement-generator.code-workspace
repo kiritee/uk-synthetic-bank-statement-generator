@@ -2,7 +2,15 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../kirkomi-utils"
 		}
 	],
-	"settings": {}
+	"settings": {},
+
+	"toml.schemas": {
+    	"ignore": ["**/pyproject.toml"]
+	}
+	
 }

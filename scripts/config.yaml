@@ -1,10 +1,22 @@
-"num_users": 5
-"months": 6
-"gpt_model": "gpt-5"
-"temperature": 1
-"openai_api_key": ""
-"batch_size": 10
-"tx_batch_size": 5
-"output_dir": "data"
-"max_tokens": 100000
+num_users: 1
+months: 6
 
+batch_size: 10
+tx_batch_size: 5
+output_dir: data
+
+# LLM configurations (optional)
+provider: openai
+model: gpt-5
+# temperature: 0.2
+
+# client_retry_attempts: 0
+# client_retry_backoff_min_s: 1
+# client_retry_backoff_max_s: 20
+
+provider_options:
+  openai:
+    request_timeout_s: 900
+    max_retries: 0
+    watchdog_timeout_s: 1200
+    enable_fallback: false

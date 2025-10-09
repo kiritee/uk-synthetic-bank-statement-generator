@@ -6,4 +6,4 @@ tenacity>=8.3.0
 python-dotenv>=1.0.0
 # optional
 colorlog>=6.7.0
-git+https://github.com/kiritee/kirkomi-utils.git@v0.1.0#egg=kirkomi_utils
+git+https://github.com/kiritee/kirkomi-utils.git@main#egg=kirkomi_utils

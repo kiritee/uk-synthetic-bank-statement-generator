@@ -4,7 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-tiktoken = "*"
 openai = "*"
 pandas = "*"
 tqdm = "*"
@@ -12,7 +11,7 @@ pyyaml = "*"
 tenacity = ">=8.3.0"
 python-dotenv = ">=1.0.0"
 colorlog = ">=6.7.0"
-kirkomi-utils = {ref = "v0.1.0", git = "https://github.com/kiritee/kirkomi-utils.git"}
+kirkomi-utils = {file = "../kirkomi-utils", editable = true}
 
 [dev-packages]
 
